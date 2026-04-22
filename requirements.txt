@@ -1,0 +1,6 @@
+pandas
+cv2
+pytesseract
+nba_api
+urllib3
+requests
