@@ -19,7 +19,7 @@ from typing import List, Optional, Tuple, Dict
 from pathlib import Path
 
 
-BASE_DIR = Path("/Users/arcstone/Desktop/snupi/nba_cv")
+BASE_DIR = Path("/Users/arcstone/Desktop/snupi/NBA_CV")
 video_path = BASE_DIR / "data" / "raw_data" / "0022401100_39.mp4"
 
 
