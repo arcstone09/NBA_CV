@@ -18,7 +18,7 @@ from urllib3.util.retry import Retry
 
 BASE_DIR = Path("/workspace/NBA_CV")
 #BASE_DIR = Path("/Users/arcstone/Desktop/snupi/nba_cv")
-RAW_DATA_DIR = BASE_DIR / "data" / "raw_data"
+RAW_DATA_DIR = BASE_DIR / "data" / "curry_24_raw_data"
 RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 #BASE_DIR = Path(__file__).resolve().parents[2]
@@ -333,7 +333,7 @@ if __name__ == "__main__":
 
     curry_shots_df = extract_player_shots_all_games(game_ids, curry_id)
 
-    #curry_shots_df.to_csv("curry_2024_25_all_shots.csv", index=False, encoding="utf-8-sig")
+    curry_shots_df.to_csv("curry_2024_25_all_shots.csv", index=False, encoding="utf-8-sig")
 
     # 3. PBP 영상 다운
     download_pbps_by_shots_df(curry_shots_df)

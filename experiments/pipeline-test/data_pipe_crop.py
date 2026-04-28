@@ -13,6 +13,7 @@ from pathlib import Path
 BASE_DIR = Path("/workspace/NBA_CV")
 input_path = BASE_DIR / "data" / "curry_24_raw_data"
 output_path = BASE_DIR / "data" / "curry_24_crop_data"
+csv_path = BASE_DIR / "data" / "curry_2024_25_all_shots.csv"
 
 #BASE_DIR = Path("/Users/arcstone/Desktop/snupi/nba_cv")
 #input_path = BASE_DIR / "data" / "curry_24_raw_data"
@@ -33,6 +34,7 @@ def iso_duration_to_mmss(s):
 #print(iso_duration_to_mmss("PT08M36.00S"))  # 08:36
 
 if __name__ == "__main__":
+    """
     # 1. 전체 경기 목록 수집
     player_name = "Stephen Curry"
     curry_id = dpd.get_player_id(player_name)
@@ -56,10 +58,11 @@ if __name__ == "__main__":
     game_ids_2025 = logs["Game_ID"].unique().tolist()
 
     # 2. 경기별 PBP에서 슛 시도 이벤트 전부 뽑기
-    game_ids = game_ids_2025[:3]
+    game_ids = game_ids_2025
 
     curry_shots_df = dpd.extract_player_shots_all_games(game_ids, curry_id)
-    
+    """
+    curry_shots_df = pd.read_csv(csv_path)
     # 3. 실제 raw_data에 pbp 존재하는 영상에 한 해 crop하고 저장.
     
     for _, row in curry_shots_df.iterrows():

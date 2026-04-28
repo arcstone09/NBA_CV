@@ -13,6 +13,8 @@ import numpy as np
 BASE_DIR = Path("/workspace/NBA_CV")
 #BASE_DIR = Path("/Users/arcstone/Desktop/snupi/nba_cv")
 input_path = BASE_DIR / "data" / "curry_24_crop_data"
+csv_path = BASE_DIR / "data" / "curry_2024_25_all_shots.csv"
+
 
 # split 비율
 TRAIN_RATIO = 0.7
@@ -26,6 +28,7 @@ def video_exists(row):
     return video_file.exists()
 
 if __name__ == "__main__":
+    """
     # 1. 전체 경기 목록 수집
     player_name = "Stephen Curry"
     curry_id = dpd.get_player_id(player_name)
@@ -49,9 +52,11 @@ if __name__ == "__main__":
     game_ids_2025 = logs["Game_ID"].unique().tolist()
 
     # 2. 경기별 PBP에서 슛 시도 이벤트 전부 뽑기
-    game_ids = game_ids_2025[0:10]
+    game_ids = game_ids_2025
 
     curry_shots_df = dpd.extract_player_shots_all_games(game_ids, curry_id)
+    """
+    curry_shots_df = pd.read_csv(csv_path)
 
     # 3. 
     ## GAME_ID, EVENTNUM, EVENTMSGTYPE, 

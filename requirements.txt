@@ -4,3 +4,4 @@ pytesseract
 nba_api
 urllib3
 requests
+scikit-learn
