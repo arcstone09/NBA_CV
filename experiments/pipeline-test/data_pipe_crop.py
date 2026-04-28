@@ -10,7 +10,7 @@ import re
 import os
 from pathlib import Path
 
-BASE_DIR = Path("/workspace/nba_cv")
+BASE_DIR = Path("/workspace/NBA_CV")
 input_path = BASE_DIR / "data" / "curry_24_raw_data"
 output_path = BASE_DIR / "data" / "curry_24_crop_data"
 
@@ -62,8 +62,6 @@ if __name__ == "__main__":
     
     # 3. 실제 raw_data에 pbp 존재하는 영상에 한 해 crop하고 저장.
     
-    # 3. 실제 raw_data에 pbp 존재하는 영상에 한 해 crop하고 저장.
-
     for _, row in curry_shots_df.iterrows():
         game_id = row["GAME_ID"]
         event_id = row["EVENTNUM"]

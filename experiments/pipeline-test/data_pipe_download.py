@@ -17,6 +17,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 BASE_DIR = Path("/workspace/NBA_CV")
+#BASE_DIR = Path("/Users/arcstone/Desktop/snupi/nba_cv")
 RAW_DATA_DIR = BASE_DIR / "data" / "raw_data"
 RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
