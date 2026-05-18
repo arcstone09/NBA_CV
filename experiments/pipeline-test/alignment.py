@@ -27,36 +27,34 @@ video_path = BASE_DIR / "data" / "raw_data" / "0022401100_39.mp4"
 class Config:
     # 몇 프레임마다 OCR할지.
     # 기존 4는 너무 느림. 60fps 기준 12면 약 0.2초마다 확인.
-    coarse_stride: int = 12
+    coarse_stride: int = 30
 
     # scoreboard 후보 영역.
     # 너무 많이 잡으면 느려짐.
     candidate_rois: Tuple[Tuple[float, float, float, float], ...] = (
-        (0.00, 0.00, 0.45, 0.18),
-        (0.55, 0.00, 1.00, 0.18),
-        (0.00, 0.82, 0.45, 1.00),
-        (0.55, 0.82, 1.00, 1.00),
+        (0.30, 0.82, 0.70, 1.00),
+        (0.68, 0.65, 0.98, 0.98),
     )
 
     # OCR 전처리 확대 배수
     ocr_scale: int = 3
 
     # scoreboard 시간만 읽을 것이므로 psm 7이 더 안정적인 경우가 많음.
-    tesseract_psm: int = 7
+    tesseract_psm: int = 6
 
     # coarse best 주변 refine 범위
-    refine_radius: int = 30
+    refine_radius: int = 15
 
     # 저장할 temporal window
     save_left: int = 60
     save_right: int = 60
 
     # 디버그 이미지 저장 여부
-    save_debug_images: bool = False
+    save_debug_images: bool = True
 
     # target_clock과 OCR clock의 허용 오차.
     # 1.5면 대체로 같은 초 또는 ±1초 정도만 허용.
-    max_acceptable_score: float = 1.5
+    max_acceptable_score: float = 5.0
 
 
 # =========================
@@ -114,7 +112,7 @@ def extract_clock_candidates(text: str) -> List[str]:
 
             # NBA quarter clock은 보통 0:00 ~ 12:00.
             # 넉넉하게 0:00 ~ 15:00까지 허용.
-            if 0 <= mm <= 15 and 0 <= ss < 60:
+            if 0 <= mm <= 12 and 0 <= ss < 60 and sec <= 12 * 60:
                 valid.append(f"{mm:02d}:{ss:02d}")
         except Exception:
             pass
@@ -207,6 +205,7 @@ def ocr_text(img_bgr, psm: int = 7, scale: int = 3) -> str:
         )
 
         text = pytesseract.image_to_string(proc, config=config)
+        print(f"[OCR RAW TEXT] [{text.strip()}]", flush=True)
         return text
 
     except Exception:
@@ -248,10 +247,17 @@ def score_ocr_result(
     best_clock = None
     best_period = None
 
+    target_sec = parse_clock_to_seconds(target_clock)
+    max_clock_diff_for_candidate = 10
+
     for c in clock_candidates:
         try:
-            d_clock = clock_distance_seconds(c, target_clock)
+            cand_sec = parse_clock_to_seconds(c)
+            d_clock = abs(cand_sec - target_sec)
         except Exception:
+            continue
+
+        if d_clock > max_clock_diff_for_candidate:
             continue
 
         score = float(d_clock)
@@ -280,7 +286,6 @@ def score_ocr_result(
 def safe_write_csv(df: Optional[pd.DataFrame], path: str):
     if df is not None and not df.empty:
         df.to_csv(path, index=False)
-
 
 # =========================
 # 탐색
@@ -395,7 +400,7 @@ def coarse_search_best_anchor(
                     cv2.imwrite(os.path.join(debug_dir, "best_coarse_roi.jpg"), roi_img)
 
         # 완전 일치하면 더 볼 필요 없이 멈춤.
-        if best_score <= 0.0:
+        if best_score <= 1.0:
             print(f"[COARSE] exact match found. stop early at frame={frame_idx}", flush=True)
             break
 
@@ -429,7 +434,6 @@ def coarse_search_best_anchor(
 
     print(f"[COARSE] success: best_frame={best_frame_idx}, best_score={best_score}", flush=True)
     return best_frame_idx, best_roi, df, best_score
-
 
 def refine_anchor_near_best(
     video_path: str,
@@ -535,6 +539,10 @@ def refine_anchor_near_best(
                 )
                 cv2.imwrite(os.path.join(debug_dir, "best_refine_frame.jpg"), dbg)
                 cv2.imwrite(os.path.join(debug_dir, "best_refine_roi.jpg"), roi_img)
+
+        if best_score <= 1.0:
+            print(f"[REFINE] exact match found. stop early at frame={current}", flush=True)
+            break
 
         current += 1
 
