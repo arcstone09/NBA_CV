@@ -297,11 +297,21 @@ def coarse_search_best_anchor(
     1차 탐색.
     실패 시 None 반환.
     """
+    print(f"[COARSE] start: video={os.path.basename(str(video_path))}, target_clock={target_clock}", flush=True)
+
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
+        print(f"[COARSE] failed to open video: {video_path}", flush=True)
         return None
 
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    print(
+        f"[COARSE] video info: frame_count={frame_count}, fps={fps}, "
+        f"coarse_stride={cfg.coarse_stride}, rois={len(cfg.candidate_rois)}",
+        flush=True
+    )
 
     rows = []
     best_score = float("inf")
@@ -309,6 +319,8 @@ def coarse_search_best_anchor(
     best_roi = None
 
     frame_idx = 0
+    checked_frames = 0
+    ocr_calls = 0
 
     while True:
         ret, frame = cap.read()
@@ -319,6 +331,15 @@ def coarse_search_best_anchor(
             frame_idx += 1
             continue
 
+        checked_frames += 1
+
+        if checked_frames == 1 or checked_frames % 25 == 0:
+            print(
+                f"[COARSE] scanning frame={frame_idx}/{frame_count}, "
+                f"checked_frames={checked_frames}, best_score={best_score}",
+                flush=True
+            )
+
         for roi_id, roi_ratio in enumerate(cfg.candidate_rois):
             roi_img, roi_xyxy = get_roi_from_ratio(frame, roi_ratio)
 
@@ -327,6 +348,8 @@ def coarse_search_best_anchor(
                 psm=cfg.tesseract_psm,
                 scale=cfg.ocr_scale
             )
+
+            ocr_calls += 1
 
             score, matched_clock, matched_period = score_ocr_result(
                 text=text,
@@ -349,6 +372,12 @@ def coarse_search_best_anchor(
                 best_frame_idx = frame_idx
                 best_roi = roi_xyxy
 
+                print(
+                    f"[COARSE] new best: frame={best_frame_idx}, roi_id={roi_id}, "
+                    f"matched_clock={matched_clock}, score={best_score}",
+                    flush=True
+                )
+
                 if cfg.save_debug_images:
                     dbg = frame.copy()
                     x1, y1, x2, y2 = roi_xyxy
@@ -367,24 +396,38 @@ def coarse_search_best_anchor(
 
         # 완전 일치하면 더 볼 필요 없이 멈춤.
         if best_score <= 0.0:
+            print(f"[COARSE] exact match found. stop early at frame={frame_idx}", flush=True)
             break
 
         frame_idx += 1
 
     cap.release()
 
+    print(
+        f"[COARSE] finished: checked_frames={checked_frames}, "
+        f"ocr_calls={ocr_calls}, best_frame={best_frame_idx}, best_score={best_score}",
+        flush=True
+    )
+
     if best_frame_idx < 0 or best_roi is None:
+        print("[COARSE] failed: no best frame or ROI", flush=True)
         return None
 
     if not rows:
+        print("[COARSE] failed: no OCR rows", flush=True)
         return None
 
     df = pd.DataFrame(rows)
     df = df.sort_values(["score", "frame_idx"]).reset_index(drop=True)
 
     if best_score > cfg.max_acceptable_score:
+        print(
+            f"[COARSE] failed: best_score={best_score} > max_acceptable_score={cfg.max_acceptable_score}",
+            flush=True
+        )
         return None
 
+    print(f"[COARSE] success: best_frame={best_frame_idx}, best_score={best_score}", flush=True)
     return best_frame_idx, best_roi, df, best_score
 
 
@@ -401,8 +444,15 @@ def refine_anchor_near_best(
     2차 탐색.
     실패 시 None 반환.
     """
+    print(
+        f"[REFINE] start: coarse_best_frame={coarse_best_frame}, "
+        f"target_clock={target_clock}",
+        flush=True
+    )
+
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
+        print(f"[REFINE] failed to open video: {video_path}", flush=True)
         return None
 
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -411,17 +461,33 @@ def refine_anchor_near_best(
     left = max(0, coarse_best_frame - cfg.refine_radius)
     right = min(frame_count - 1, coarse_best_frame + cfg.refine_radius)
 
+    print(
+        f"[REFINE] range: left={left}, right={right}, "
+        f"total_frames_to_check={right - left + 1}, roi={best_roi_xyxy}",
+        flush=True
+    )
+
     rows = []
     best_score = float("inf")
     best_frame_idx = coarse_best_frame
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, left)
     current = left
+    checked_frames = 0
 
     while current <= right:
         ret, frame = cap.read()
         if not ret:
             break
+
+        checked_frames += 1
+
+        if checked_frames == 1 or checked_frames % 10 == 0:
+            print(
+                f"[REFINE] scanning frame={current}/{right}, "
+                f"checked_frames={checked_frames}, best_score={best_score}",
+                flush=True
+            )
 
         roi_img = frame[y1:y2, x1:x2].copy()
 
@@ -449,6 +515,12 @@ def refine_anchor_near_best(
             best_score = score
             best_frame_idx = current
 
+            print(
+                f"[REFINE] new best: frame={best_frame_idx}, "
+                f"matched_clock={matched_clock}, score={best_score}",
+                flush=True
+            )
+
             if cfg.save_debug_images:
                 dbg = frame.copy()
                 cv2.rectangle(dbg, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -468,15 +540,27 @@ def refine_anchor_near_best(
 
     cap.release()
 
+    print(
+        f"[REFINE] finished: checked_frames={checked_frames}, "
+        f"best_frame={best_frame_idx}, best_score={best_score}",
+        flush=True
+    )
+
     if not rows:
+        print("[REFINE] failed: no OCR rows", flush=True)
         return None
 
     df = pd.DataFrame(rows)
     df = df.sort_values(["score", "frame_idx"]).reset_index(drop=True)
 
     if best_score > cfg.max_acceptable_score:
+        print(
+            f"[REFINE] failed: best_score={best_score} > max_acceptable_score={cfg.max_acceptable_score}",
+            flush=True
+        )
         return None
 
+    print(f"[REFINE] success: final_anchor_frame={best_frame_idx}, best_score={best_score}", flush=True)
     return best_frame_idx, df, best_score
 
 
@@ -491,8 +575,15 @@ def save_temporal_crop(
     left_frames: int,
     right_frames: int
 ):
+    print(
+        f"[SAVE] start: anchor_frame_idx={anchor_frame_idx}, "
+        f"left_frames={left_frames}, right_frames={right_frames}",
+        flush=True
+    )
+
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
+        print(f"[SAVE] failed to open video: {video_path}", flush=True)
         raise RuntimeError(f"Cannot open video: {video_path}")
 
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -503,6 +594,17 @@ def save_temporal_crop(
     start_idx = max(0, anchor_frame_idx - left_frames)
     end_idx = min(frame_count - 1, anchor_frame_idx + right_frames)
 
+    print(
+        f"[SAVE] video info: fps={fps}, frame_count={frame_count}, "
+        f"width={width}, height={height}",
+        flush=True
+    )
+    print(
+        f"[SAVE] crop range: start_frame={start_idx}, end_frame={end_idx}, "
+        f"expected_frames={end_idx - start_idx + 1}",
+        flush=True
+    )
+
     os.makedirs(os.path.dirname(str(output_path)), exist_ok=True)
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -510,6 +612,7 @@ def save_temporal_crop(
 
     if not writer.isOpened():
         cap.release()
+        print(f"[SAVE] failed to open writer: {output_path}", flush=True)
         raise RuntimeError(f"Cannot open writer: {output_path}")
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_idx)
@@ -522,8 +625,13 @@ def save_temporal_crop(
         writer.write(frame)
         saved += 1
 
+        if saved == 1 or saved % 30 == 0:
+            print(f"[SAVE] writing frames: saved={saved}/{end_idx - start_idx + 1}", flush=True)
+
     writer.release()
     cap.release()
+
+    print(f"[SAVE] finished: saved_frames={saved}, output_path={output_path}", flush=True)
 
     return {
         "start_frame": start_idx,
@@ -549,6 +657,12 @@ def crop_clip_around_target_clock(
     성공 시 meta dict 반환.
     실패 시 None 반환.
     """
+    print(
+        f"[PIPELINE] start: video={os.path.basename(str(video_path))}, "
+        f"target_clock={target_clock}, output_path={output_path}",
+        flush=True
+    )
+
     if cfg is None:
         cfg = Config()
 
@@ -557,6 +671,8 @@ def crop_clip_around_target_clock(
         debug_dir = f"./debug_{base}_{target_clock.replace(':', '-')}"
 
     os.makedirs(debug_dir, exist_ok=True)
+
+    print(f"[PIPELINE] debug_dir={debug_dir}", flush=True)
 
     coarse_result = coarse_search_best_anchor(
         video_path=video_path,
@@ -567,10 +683,12 @@ def crop_clip_around_target_clock(
     )
 
     if coarse_result is None:
+        print("[PIPELINE] failed at coarse_search_best_anchor", flush=True)
         return None
 
     coarse_best_frame, best_roi, coarse_df, coarse_score = coarse_result
     safe_write_csv(coarse_df, os.path.join(debug_dir, "coarse_search_results.csv"))
+    print(f"[PIPELINE] coarse csv saved. coarse_best_frame={coarse_best_frame}, coarse_score={coarse_score}", flush=True)
 
     refine_result = refine_anchor_near_best(
         video_path=video_path,
@@ -583,10 +701,12 @@ def crop_clip_around_target_clock(
     )
 
     if refine_result is None:
+        print("[PIPELINE] failed at refine_anchor_near_best", flush=True)
         return None
 
     final_anchor_frame, refine_df, refine_score = refine_result
     safe_write_csv(refine_df, os.path.join(debug_dir, "refine_search_results.csv"))
+    print(f"[PIPELINE] refine csv saved. final_anchor_frame={final_anchor_frame}, refine_score={refine_score}", flush=True)
 
     save_info = save_temporal_crop(
         video_path=video_path,
@@ -611,6 +731,9 @@ def crop_clip_around_target_clock(
     }
 
     pd.DataFrame([meta]).to_csv(os.path.join(debug_dir, "summary.csv"), index=False)
+
+    print(f"[PIPELINE] summary csv saved: {os.path.join(debug_dir, 'summary.csv')}", flush=True)
+    print(f"[PIPELINE] done: output_path={output_path}", flush=True)
 
     return meta
 
