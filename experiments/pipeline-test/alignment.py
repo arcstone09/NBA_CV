@@ -46,7 +46,7 @@ class Config:
     refine_radius: int = 15
 
     # 저장할 temporal window
-    save_left: int = 60
+    save_left: int = 120
     save_right: int = 60
 
     # 디버그 이미지 저장 여부
@@ -613,7 +613,7 @@ def save_temporal_crop(
         flush=True
     )
 
-    os.makedirs(os.path.dirname(str(output_path)), exist_ok=True)
+    #os.makedirs(os.path.dirname(str(output_path)), exist_ok=True)
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
@@ -674,11 +674,12 @@ def crop_clip_around_target_clock(
     if cfg is None:
         cfg = Config()
 
-    if debug_dir is None:
-        base = os.path.splitext(os.path.basename(str(video_path)))[0]
-        debug_dir = f"./debug_{base}_{target_clock.replace(':', '-')}"
+    #if debug_dir is None:
+    #    base = os.path.splitext(os.path.basename(str(video_path)))[0]
+    #    debug_dir = f"./debug_{base}_{target_clock.replace(':', '-')}"
+    debug_dir = None
 
-    os.makedirs(debug_dir, exist_ok=True)
+    #os.makedirs(debug_dir, exist_ok=True)
 
     print(f"[PIPELINE] debug_dir={debug_dir}", flush=True)
 
@@ -695,7 +696,7 @@ def crop_clip_around_target_clock(
         return None
 
     coarse_best_frame, best_roi, coarse_df, coarse_score = coarse_result
-    safe_write_csv(coarse_df, os.path.join(debug_dir, "coarse_search_results.csv"))
+    #safe_write_csv(coarse_df, os.path.join(debug_dir, "coarse_search_results.csv"))
     print(f"[PIPELINE] coarse csv saved. coarse_best_frame={coarse_best_frame}, coarse_score={coarse_score}", flush=True)
 
     refine_result = refine_anchor_near_best(
@@ -712,8 +713,21 @@ def crop_clip_around_target_clock(
         print("[PIPELINE] failed at refine_anchor_near_best", flush=True)
         return None
 
+    # 0.5초씩 앞당겨 저장
+    #final_anchor_frame, refine_df, refine_score = refine_result
+    #safe_write_csv(refine_df, os.path.join(debug_dir, "refine_search_results.csv"))
+    #print(f"[PIPELINE] refine csv saved. final_anchor_frame={final_anchor_frame}, refine_score={refine_score}", flush=True)
+
     final_anchor_frame, refine_df, refine_score = refine_result
-    safe_write_csv(refine_df, os.path.join(debug_dir, "refine_search_results.csv"))
+
+    cap = cv2.VideoCapture(str(video_path))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    cap.release()
+
+    shift_frames = int(fps * 1.00)
+    final_anchor_frame = max(0, final_anchor_frame - shift_frames)
+
+    #safe_write_csv(refine_df, os.path.join(debug_dir, "refine_search_results.csv"))
     print(f"[PIPELINE] refine csv saved. final_anchor_frame={final_anchor_frame}, refine_score={refine_score}", flush=True)
 
     save_info = save_temporal_crop(
@@ -738,7 +752,7 @@ def crop_clip_around_target_clock(
         **save_info,
     }
 
-    pd.DataFrame([meta]).to_csv(os.path.join(debug_dir, "summary.csv"), index=False)
+    #pd.DataFrame([meta]).to_csv(os.path.join(debug_dir, "summary.csv"), index=False)
 
     print(f"[PIPELINE] summary csv saved: {os.path.join(debug_dir, 'summary.csv')}", flush=True)
     print(f"[PIPELINE] done: output_path={output_path}", flush=True)

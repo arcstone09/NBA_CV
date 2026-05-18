@@ -3,7 +3,6 @@ data_pipe_crop.py
 ../../data/curry_24_align에 curry의 24/25 season 모든 슛 시도 pbp align 영상 다운
 """
 
-import data_pipe_download as dpd
 import alignment as al
 import time
 import pandas as pd
@@ -11,15 +10,19 @@ import re
 import os
 from pathlib import Path
 
+# vastAI Server
 BASE_DIR = Path("/workspace/NBA_CV")
 input_path = BASE_DIR / "data" / "curry_24_raw_data"
 output_path = BASE_DIR / "data" / "curry_24_crop_data"
 csv_path = BASE_DIR / "data" / "curry_2024_25_all_shots.csv"
 failed_log_path = BASE_DIR / "data" / "curry_24_crop_failed_log.csv"
 
-# BASE_DIR = Path("/Users/arcstone/Desktop/snupi/nba_cv")
-# input_path = BASE_DIR / "data" / "curry_24_raw_data"
-# output_path = BASE_DIR / "data" / "curry_24_crop_data"
+# local
+#BASE_DIR = Path("/Users/arcstone/Desktop/snupi/nba_cv")
+#input_path = BASE_DIR / "data" / "curry_24_raw_data"
+#output_path = BASE_DIR / "data" / "curry_24_crop_data"
+#csv_path = BASE_DIR / "data" / "curry_2024_25_all_shots.csv"
+#failed_log_path = BASE_DIR / "data" / "curry_24_crop_failed_log.csv"
 
 
 def iso_duration_to_mmss(s):
@@ -77,7 +80,7 @@ if __name__ == "__main__":
     cfg = al.Config(
         coarse_stride=12,
         refine_radius=30,
-        save_left=60,
+        save_left=120,
         save_right=60,
         max_acceptable_score=1.5,
         save_debug_images=False,
@@ -99,8 +102,10 @@ if __name__ == "__main__":
     skip_count = 0
     fail_count = 0
     error_count = 0
-
-    for idx, row in curry_shots_df.iterrows():
+    
+    start_row = 700
+    for idx, row in curry_shots_df.iloc[start_row:].iterrows():
+    #for idx, row in curry_shots_df.iterrows():
         game_id = str(row["GAME_ID"]).zfill(10)
         event_id = row["EVENTNUM"]
 
