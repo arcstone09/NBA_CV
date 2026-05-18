@@ -400,7 +400,7 @@ def coarse_search_best_anchor(
                     cv2.imwrite(os.path.join(debug_dir, "best_coarse_roi.jpg"), roi_img)
 
         # 완전 일치하면 더 볼 필요 없이 멈춤.
-        if best_score <= 1.0:
+        if best_score < 1.0:
             print(f"[COARSE] exact match found. stop early at frame={frame_idx}", flush=True)
             break
 
