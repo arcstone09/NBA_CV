@@ -306,6 +306,7 @@ def download_pbps_by_shots_df(player_shots_df: pd.DataFrame):
     
 ## 전체 실행 
 if __name__ == "__main__":
+    """
     # 1. 전체 경기 목록 수집
     player_name = "Stephen Curry"
     curry_id = get_player_id(player_name)
@@ -336,4 +337,7 @@ if __name__ == "__main__":
     curry_shots_df.to_csv("curry_2024_25_all_shots.csv", index=False, encoding="utf-8-sig")
 
     # 3. PBP 영상 다운
+    download_pbps_by_shots_df(curry_shots_df)
+    """
+    curry_shots_df = pd.read_csv("/workspace/NBA_CV/data/curry_2024_25_all_shots.csv")
     download_pbps_by_shots_df(curry_shots_df)
