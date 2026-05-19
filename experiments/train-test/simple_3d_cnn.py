@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from torchvision.models.video import r2plus1d_18, R2Plus1D_18_Weights
+
 from data_load import get_dataloaders
 
 
@@ -8,27 +10,14 @@ class Simple3DCNN(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.features = nn.Sequential(
-            nn.Conv3d(3, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool3d(2),
+        weights = R2Plus1D_18_Weights.DEFAULT
+        self.model = r2plus1d_18(weights=weights)
 
-            nn.Conv3d(16, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool3d(2),
-
-            nn.Conv3d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-
-            nn.AdaptiveAvgPool3d((1, 1, 1)),
-        )
-
-        self.classifier = nn.Linear(64, 1)
+        in_features = self.model.fc.in_features
+        self.model.fc = nn.Linear(in_features, 1)
 
     def forward(self, x):
-        x = self.features(x)
-        x = x.flatten(1)
-        logit = self.classifier(x)
+        logit = self.model(x)
         return logit.squeeze(1)
 
 
@@ -40,13 +29,17 @@ if __name__ == "__main__":
     )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("device:", device)
+
+    if torch.cuda.is_available():
+        print("gpu:", torch.cuda.get_device_name(0))
 
     model = Simple3DCNN().to(device)
 
     frames, labels = next(iter(train_loader))
 
-    frames = frames.to(device)
-    labels = labels.to(device)
+    frames = frames.to(device, non_blocking=True)
+    labels = labels.to(device, non_blocking=True)
 
     logits = model(frames)
 
