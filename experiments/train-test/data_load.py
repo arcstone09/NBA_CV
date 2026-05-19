@@ -11,6 +11,10 @@ input_path = BASE_DIR / "data" / "curry_24_crop_data"
 csv_path = BASE_DIR / "data" / "curry_24_split.csv"
 
 
+KINETICS_MEAN = torch.tensor([0.43216, 0.394666, 0.37645]).view(3, 1, 1, 1)
+KINETICS_STD = torch.tensor([0.22803, 0.22145, 0.216989]).view(3, 1, 1, 1)
+
+
 def resize_with_padding(frame, size=112):
     h, w, _ = frame.shape
     scale = size / max(h, w)
@@ -62,6 +66,9 @@ def load_video_frames(video_path, num_frames=16, size=112):
     # (T, H, W, C) -> (C, T, H, W)
     frames_tensor = torch.from_numpy(frames_np).permute(3, 0, 1, 2)
 
+    # pretrained video model용 normalization
+    frames_tensor = (frames_tensor - KINETICS_MEAN) / KINETICS_STD
+
     return frames_tensor
 
 
@@ -105,7 +112,7 @@ def get_dataloaders(batch_size=8, num_frames=16, size=112):
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=2,
+        num_workers=4,
         pin_memory=True,
     )
 
@@ -113,7 +120,7 @@ def get_dataloaders(batch_size=8, num_frames=16, size=112):
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=2,
+        num_workers=4,
         pin_memory=True,
     )
 
@@ -121,7 +128,7 @@ def get_dataloaders(batch_size=8, num_frames=16, size=112):
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=2,
+        num_workers=4,
         pin_memory=True,
     )
 

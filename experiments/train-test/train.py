@@ -12,7 +12,7 @@ from data_load import get_dataloaders
 from simple_3d_cnn import Simple3DCNN
 
 
-def train_one_epoch(model, train_loader, criterion, optimizer, device):
+def train_one_epoch(model, train_loader, criterion, optimizer, device, scaler):
     model.train()
 
     total_loss = 0.0
@@ -23,15 +23,18 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device):
     all_labels = []
 
     for frames, labels in train_loader:
-        frames = frames.to(device)
-        labels = labels.to(device).float()
-
-        logits = model(frames)
-        loss = criterion(logits, labels)
+        frames = frames.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True).float()
 
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+
+        with torch.cuda.amp.autocast(enabled=(device == "cuda")):
+            logits = model(frames)
+            loss = criterion(logits, labels)
+
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         total_loss += loss.item() * frames.size(0)
 
@@ -67,11 +70,12 @@ def evaluate(model, loader, criterion, device):
 
     with torch.no_grad():
         for frames, labels in loader:
-            frames = frames.to(device)
-            labels = labels.to(device).float()
+            frames = frames.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True).float()
 
-            logits = model(frames)
-            loss = criterion(logits, labels)
+            with torch.cuda.amp.autocast(enabled=(device == "cuda")):
+                logits = model(frames)
+                loss = criterion(logits, labels)
 
             total_loss += loss.item() * frames.size(0)
 
@@ -119,6 +123,9 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("device:", device)
 
+    if torch.cuda.is_available():
+        print("gpu:", torch.cuda.get_device_name(0))
+
     train_loader, val_loader, test_loader = get_dataloaders(
         batch_size=8,
         num_frames=16,
@@ -130,12 +137,14 @@ def main():
     criterion = nn.BCEWithLogitsLoss()
     optimizer = Adam(model.parameters(), lr=1e-4)
 
+    scaler = torch.cuda.amp.GradScaler(enabled=(device == "cuda"))
+
     num_epochs = 20
     best_val_loss = float("inf")
 
     for epoch in range(1, num_epochs + 1):
         train_loss, train_acc, train_auc = train_one_epoch(
-            model, train_loader, criterion, optimizer, device
+            model, train_loader, criterion, optimizer, device, scaler
         )
 
         val_loss, val_acc, val_auc, val_probs, val_labels = evaluate(
@@ -154,11 +163,11 @@ def main():
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model.state_dict(), "best_simple_3d_cnn.pth")
+            torch.save(model.state_dict(), "best_r2plus1d_18.pth")
             print("saved best model")
 
     model.load_state_dict(
-        torch.load("best_simple_3d_cnn.pth", map_location=device)
+        torch.load("best_r2plus1d_18.pth", map_location=device)
     )
 
     test_loss, test_acc, test_auc, test_probs, test_labels = evaluate(
